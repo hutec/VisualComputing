@@ -1,7 +1,9 @@
 from skimage import data, io, filters, novice
 from scipy import ndimage
-from numpy.linalg import inv
+from numpy.linalg import inv, LinAlgError
+
 import numpy as np
+
 
 def blue_screen_matting(a1, a2, img):
     """
@@ -74,10 +76,10 @@ def bayes_matting(img, trimap, sigma_d=0.5, it=1):
     # initial alpha guess
     alpha = np.zeros(trimap.shape)
     alpha[trimap == 255] = 1
-    alpha[trimap == 128] = 0.5
+    alpha[trimap == 128] = 0.3
     
-    B = img[trimap == 0] 
-    F = img[trimap == 255]
+    B = img[trimap == 0] # background pixel mask
+    F = img[trimap == 255] # foreground pixel mask
     
     while it > 0:
         mean_B = np.mean(B, axis=0)
@@ -88,15 +90,23 @@ def bayes_matting(img, trimap, sigma_d=0.5, it=1):
         try:
             inv_cov_B = np.linalg.inv(cov_B)
             inv_cov_F = np.linalg.inv(cov_F)
-
         except LinAlgError:
             print("LinAlgError")
-            
+
         F = np.zeros(img.shape)
         B = np.zeros(img.shape)
 
         for row in range(nrows):
             for col in range(ncols):
+                if alpha[row, col] == 1:
+                    F[row, col] = img[row, col]
+                    B[row, col] = 0
+                    continue
+                if alpha[row, col] == 0:
+                    F[row, col] = 0
+                    B[row, col] = img[row, col]
+                    continue
+
                 I = img[row, col]
                 a = alpha[row, col]
 
@@ -120,10 +130,14 @@ def bayes_matting(img, trimap, sigma_d=0.5, it=1):
 
         for row in range(nrows):
             for col in range(ncols):
+                if alpha[row, col] == 1 or alpha[row, col] == 0:
+                    continue
+
                 alpha[row, col] = (np.dot((img[row, col] - B[row, col]), (F[row, col] - B[row, col])) /
                                    np.dot(F[row, col] - B[row, col], F[row, col] - B[row, col]))
 
         alpha = np.clip(alpha, 0, 1)
+
         F = F.reshape(-1, 3)
         B = B.reshape(-1, 3)
         
