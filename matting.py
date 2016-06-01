@@ -57,7 +57,7 @@ def triangulation_matting(img1, bg1, img2, bg2):
     return np.clip(alpha, 0, 1)
 
 
-def bayes_matting(img, trimap, sigma_d=0.5, it=1):
+def bayes_matting(img, trimap, sigma_d=0.5, it=1, log=False):
     """
     Implements Bayesian Matting.
     Given a background for calculating the mean and variance
@@ -76,16 +76,23 @@ def bayes_matting(img, trimap, sigma_d=0.5, it=1):
     # initial alpha guess
     alpha = np.zeros(trimap.shape)
     alpha[trimap == 255] = 1
-    alpha[trimap == 128] = 0.3
-    
-    B = img[trimap == 0] # background pixel mask
-    F = img[trimap == 255] # foreground pixel mask
+    alpha[trimap == 128] = 0.5
+
+    alpha_log = []
+
+    B = img[alpha == 0] # background pixel mask
+    F = img[alpha == 1] # foreground pixel mask
     
     while it > 0:
+
         mean_B = np.mean(B, axis=0)
         cov_B = np.cov(B.T)
         mean_F = np.mean(F, axis=0)
         cov_F = np.cov(F.T)
+
+        print("Background pixels: {}, Foreground Pixels: {}".format(len(B), len(F)))
+        # print("alpha[430, 500]: {}".format(alpha[430, 500]))
+        # print("mean_B: {}, mean_F: {}".format(mean_B, mean_F))
 
         try:
             inv_cov_B = np.linalg.inv(cov_B)
@@ -128,19 +135,33 @@ def bayes_matting(img, trimap, sigma_d=0.5, it=1):
 
                 F[row, col], B[row, col] = np.split(np.linalg.solve(l, r), 2)
 
+        diff = 0
+
         for row in range(nrows):
             for col in range(ncols):
                 if alpha[row, col] == 1 or alpha[row, col] == 0:
                     continue
 
-                alpha[row, col] = (np.dot((img[row, col] - B[row, col]), (F[row, col] - B[row, col])) /
+                alpha_new = (np.dot((img[row, col] - B[row, col]), (F[row, col] - B[row, col])) /
                                    np.dot(F[row, col] - B[row, col], F[row, col] - B[row, col]))
+                diff += np.abs(alpha[row, col] - alpha_new)
+                alpha[row, col] = alpha_new
 
         alpha = np.clip(alpha, 0, 1)
 
-        F = F.reshape(-1, 3)
-        B = B.reshape(-1, 3)
+        print("Alpha Diff: {}".format(diff))
+
+        F = F[alpha != 0]
+        B = B[alpha != 1]
+
+        if log:
+            alpha_log.append(alpha)
         
         it -= 1
     
-    return F.reshape(img.shape), B.reshape(img.shape), alpha
+    #if log:
+    #    return F.reshape(img.shape), B.reshape(img.shape), alpha, alpha_log
+    #else:
+    #    return F.reshape(img.shape), B.reshape(img.shape), alpha
+
+    return alpha
