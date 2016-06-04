@@ -2,6 +2,8 @@ from skimage import data, io, filters, novice
 from scipy import ndimage
 from numpy.linalg import inv, LinAlgError
 
+import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
 
 
@@ -95,3 +97,45 @@ def calculate_alpha(color, F, B):
     :return: alpha value
     """
     return np.dot(color - B, F - B) / np.dot(F - B, F - B)
+
+
+def plot_color_distribution(img, trimap):
+    """
+    Plots color distribution of known foreground and background given a trimap for segmentation.
+
+    :param img:
+    :param trimap:
+    :return:
+    """
+
+    f = img[trimap == 255]
+    b = img[trimap == 0]
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlabel('Red')
+    ax.set_ylabel('Blue')
+    ax.set_zlabel('Green')
+    ax.set_title("3D RGB Scatter")
+
+    for source in [f, b]:
+        X, Y, Z = source[:, 0], source[:, 1], source[:, 2]
+        ax.scatter3D(X, Y, Z)
+
+
+def plot_channel_histogram(img, tri):
+    """
+    Plots histogram for each color channel
+
+    :param img:
+    :param tri:
+    :return:
+    """
+    rgb = ['red', 'green', 'blue']
+
+    f = img[tri == 255]
+    b = img[tri == 0]
+
+    for source in [f, b]:
+        for channel in range(source.shape[-1]):
+            sns.distplot(source[:, channel], color=rgb[channel])
